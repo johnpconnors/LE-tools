@@ -74,11 +74,13 @@ while feature:
 	feature.Destroy()
 	feature=inLayer.GetNextFeature()
 
-	outraster = str(cnt)+'.rst'
+	outraster = str(cnt)+'.tif'
+	clippedrst = str(cnt)+'_clip.tif'
 	print type(extent)
 	print type (extent[1])
 	print extent[1]
 	#clip the raster with the shapefile
 	print (os.system('echo $PYTHONPATH'))
 	os.system('gdal_translate -of GTiff -projwin %s %s %s %s -co "TFW=YES" %s %s' % (bbox[0], bbox[3], bbox[1], bbox[2], rasterimg, outraster))
+	os.system('gdalwarp -of GTIFF -cutline %s %s %s' % (outfile, outraster, clippedrst))
 	cnt=cnt+1
