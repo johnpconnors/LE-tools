@@ -6,7 +6,7 @@ from osgeo import ogr
 
 path = '/Users/johnpconnors/testing/'
 inputshp = 'NRCS_HUC8_2011.shp'
-rasterimg='AZ_CDL_2010.tif'
+rasterimg='OwnershipDissolve.tif'
 sys.path.append("/Library/Frameworks/GDAL.framework/Programs")
 os.system("gdalinfo --version")
 #change to appropriate directory
@@ -74,13 +74,25 @@ while feature:
 	feature.Destroy()
 	feature=inLayer.GetNextFeature()
 
-	outraster = str(cnt)+'.tif'
-	clippedrst = str(cnt)+'_clip.tif'
+	outraster = str(cnt)
+	clippedrst = str(cnt)+'_clip'
 	print type(extent)
 	print type (extent[1])
 	print extent[1]
 	#clip the raster with the shapefile
 	print (os.system('echo $PYTHONPATH'))
-	os.system('gdal_translate -of GTiff -projwin %s %s %s %s -co "TFW=YES" %s %s' % (bbox[0], bbox[3], bbox[1], bbox[2], rasterimg, outraster))
-	os.system('gdalwarp -of GTIFF -cutline %s %s %s' % (outfile, outraster, clippedrst))
+	#clips the raster using the extent of the subset shapefile
+	os.system('gdal_translate -of Ehdr -projwin %s %s %s %s %s %s' % (bbox[0], bbox[3], bbox[1], bbox[2], rasterimg, outraster))
+	#uses the newly created shapefile to mask the bounded raster
+	os.system('gdalwarp -of Ehdr -cutline %s %s %s' % (outfile, outraster, clippedrst))
+	#delete the extraneous files
+	cntstr = str(cnt)
+	os.remove(outfile)
+	os.remove(cntstr+'.clr')
+	os.remove(cntstr+'.dbf')
+	os.remove(cntstr+'.hdr')
+	os.remove(cntstr+'.prj')
+	os.remove(cntstr+'.shx')
+	os.remove(cntstr+'.aux.xml')			
+	os.remove(outraster)
 	cnt=cnt+1
