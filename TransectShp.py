@@ -36,7 +36,6 @@ def run(datapath, startx, starty, endx, endy, dist, buff, inputrst):
 	endx = float(projpts[2])
 	endy = float(projpts[3])
 	move = transectpoints(startx, starty, endx, endy, dist)
-
 	pts = [startx, starty]
 
 	#spatialReference.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
@@ -44,9 +43,9 @@ def run(datapath, startx, starty, endx, endy, dist, buff, inputrst):
 	shapeData = driver.CreateDataSource(outpts)
 	outfile = driver.CreateDataSource(outbuffs)
 	#Create Layer
-	layer = shapeData.CreateLayer('layer1', spatialReference, osgeo.ogr.wkbPoint)
+	layer = shapeData.CreateLayer('layer1', spatialReference, ogr.wkbPoint)
 	layerDef = layer.GetLayerDefn()
-	outlayer = outfile.CreateLayer('layer1', spatialReference, osgeo.ogr.wkbPolygon)
+	outlayer = outfile.CreateLayer('layer1', spatialReference, ogr.wkbPolygon)
 	outLayerDef = layer.GetLayerDefn()
 	#loop through to calculate new points and save to shapefile
 	totaldist = math.sqrt(((endx-startx)**2)+((endy-starty)**2))
@@ -56,17 +55,22 @@ def run(datapath, startx, starty, endx, endy, dist, buff, inputrst):
 	for i in range(numpts):
 		pts = createpts(pts, move, layer, layerDef)
 	shapeData.Destroy()
-	buffers(outlayer, buff)
+	angle2 = angle(startx, starty, endx, endy)
+	buffersq(outlayer, buff, outpts, angle2)
+
+def angle(startx, starty, endx, endy):
+	slope = (endy-starty)/(endx-startx)
+	angle = math.atan(slope)
+	return angle
 
 def transectpoints(startx, starty, endx, endy, dist):
 	#Define the start and end points of the transect
 	#Specify the Buffer
 	#Specify the distance
-	slope = (endy-starty)/(endx-startx)
-	angle = math.atan(slope)
-	xmove = dist * math.cos(angle)
+	angled = angle(startx, starty, endx, endy)
+	xmove = dist * math.cos(angled)
 	print xmove
-	ymove = dist * math.sin(angle)
+	ymove = dist * math.sin(angled)
 	print ymove
 	move = [xmove, ymove]
 	return move
@@ -135,9 +139,72 @@ def convertpts(startx, starty, endx, endy, spatialref):
 	#convert the lat/long points to the image reference
 	(x1, y1, height)=ct.TransformPoint(startx, starty)
 	(x2, y2, height)=ct.TransformPoint(endx, endy)
+	print x1, y1
+	print x2, y2
 	return x1, y1, x2, y2
+
+def buffersq (outlayer, buff, outpts, angle):
+	angle = angle*180/math.pi 
+	ds=ogr.Open(outpts, 1)
+	print ds
+	lc=ds.GetLayerCount()
+	print lc
+	lyr=ds.GetLayer()
+	fc=lyr.GetFeatureCount()
+	print fc
+
+	for i in range(fc):
+		print i
+		feat=lyr.GetFeature(i)
+		geom=feat.GetGeometryRef()
+		p=geom.GetPoint()
+		ulc = (p[0]-buff, p[1]+buff, 0)
+		llc = (p[0]-buff, p[1]-buff, 0)
+		urc = (p[0]+buff, p[1]+buff, 0)
+		lrc = (p[0]+buff, p[1]-buff, 0)
+		print angle
+		print ulc
+		ulc = rotate2d(angle, ulc, p)
+		print ulc
+		llc = rotate2d(angle, llc, p)
+		urc = rotate2d(angle, urc, p)
+		lrc = rotate2d(angle, lrc, p)
+		#a = angle
+		#cosa = math.cos(a)
+		#sina = math.sin(a)
+		#ulc = (ulc[0] * cosa - ulc[1] * sina, ulc[0] * sina + ulc[1] * cosa)
+		#llc = (llc[0] * cosa - llc[1] * sina, llc[0] * sina + llc[1] * cosa)
+		#urc = (urc[0] * cosa - urc[1] * sina, urc[0] * sina + urc[1] * cosa)
+		#lrc = (lrc[0] * cosa - lrc[1] * sina, lrc[0] * sina + lrc[1] * cosa)
+
+		ring=ogr.Geometry(ogr.wkbLinearRing)
+		ring.AddPoint(ulc[0], ulc[1]) #upper left
+		ring.AddPoint(llc[0], llc[1]) #lower left
+		ring.AddPoint(lrc[0], lrc[1]) #lower right
+		ring.AddPoint(urc[0], urc[1]) #upper right
+		#ring.AddPoint(p[0]-buff, p[1]+buff) #upper left
+		#ring.AddPoint(p[0]-buff, p[1]-buff) #lower left
+		#ring.AddPoint(p[0]+buff, p[1]-buff) #lower right
+		#ring.AddPoint(p[0]+buff, p[1]+buff) #upper right
+		ring.CloseRings()
+
+		poly=ogr.Geometry(ogr.wkbPolygon)
+		poly.AddGeometry(ring)
+		feat.SetGeometry(poly)
+		outlayer.CreateFeature(feat)
+
+def rotate2d(degrees,point,origin):
+	print 'rotating'
+	x = point[0] - origin[0]
+	y = point[1] - origin[1]
+	newx = (x*math.cos(math.radians(degrees))) - (y*math.sin(math.radians(degrees)))
+	newy = (x*math.sin(math.radians(degrees))) + (y*math.cos(math.radians(degrees)))
+	newx += origin[0]
+	newy += origin[1] 
+	return newx, newy
+
 
 
 if __name__ == '__main__':
 	#1 is datapath, 2 is shapefile, 3 is transect start, 4 is transect end, 5 is buffer size, 6 is distance between points
-	run(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
+	run(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8]) 
